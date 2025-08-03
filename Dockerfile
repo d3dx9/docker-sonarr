@@ -53,7 +53,7 @@ RUN dotnet build Sonarr.sln \
     -p:DebugType=portable \
     -p:DebugSymbols=true
 
-# Find and publish the main project - remove --no-build to allow rebuild with RID
+# Find and publish the main project
 RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
     echo "Publishing project: $MAIN_PROJECT" && \
     dotnet publish "$MAIN_PROJECT" \
@@ -66,6 +66,18 @@ RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
     -p:PublishReadyToRun=false \
     -p:PublishSingleFile=false \
     -o /app/sonarr/bin
+
+# Debug: Show detailed contents and find the correct entry point
+RUN echo "=== DETAILED CONTENTS ===" && \
+    ls -la /app/sonarr/bin/ && \
+    echo "=== DLL FILES ===" && \
+    find /app/sonarr/bin -name "*.dll" && \
+    echo "=== EXECUTABLE FILES ===" && \
+    find /app/sonarr/bin -type f -executable && \
+    echo "=== LOOKING FOR MAIN DLL ===" && \
+    find /app/sonarr/bin -name "*Sonarr*" -o -name "*Host*" -o -name "*NzbDrone*" && \
+    echo "=== PROJECT FILE CONTENT ===" && \
+    cat $(find . -name "*Host*.csproj" | grep -v Test | head -1)
 
 # Remove PDB files and other unnecessary files to save space
 RUN find /app/sonarr/bin -name "*.pdb" -delete && \
@@ -87,6 +99,12 @@ RUN apk add --no-cache \
 # Copy built application
 COPY --from=builder /app/sonarr/bin /app/sonarr/bin
 
+# Debug: Check what was copied
+RUN echo "=== FINAL CONTENTS ===" && \
+    ls -la /app/sonarr/bin/ && \
+    echo "=== MAIN FILES ===" && \
+    find /app/sonarr/bin -name "*.dll" | head -10
+
 # Create package info
 RUN echo -e "UpdateMethod=docker\nBranch=v5-develop\nPackageVersion=${VERSION}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
     printf "Linuxserver.io version: ${VERSION}\nBuild-date: ${BUILD_DATE}" > /build_version && \
@@ -98,5 +116,19 @@ WORKDIR /app/sonarr
 # Expose port
 EXPOSE 8989
 
-# Run Sonarr
-CMD ["./bin/Sonarr", "-nobrowser", "-data=/config"]
+# Try to find and run the correct DLL - this will show us what's available
+CMD echo "Available DLL files:" && find ./bin -name "*.dll" && \
+    echo "Trying to run..." && \
+    if [ -f "./bin/Sonarr.dll" ]; then \
+        dotnet ./bin/Sonarr.dll -nobrowser -data=/config; \
+    elif [ -f "./bin/Sonarr.Host.dll" ]; then \
+        dotnet ./bin/Sonarr.Host.dll -nobrowser -data=/config; \
+    elif [ -f "./bin/NzbDrone.Host.dll" ]; then \
+        dotnet ./bin/NzbDrone.Host.dll -nobrowser -data=/config; \
+    elif [ -f "./bin/NzbDrone.dll" ]; then \
+        dotnet ./bin/NzbDrone.dll -nobrowser -data=/config; \
+    else \
+        echo "No suitable DLL found. Available files:"; \
+        ls -la ./bin/; \
+        exit 1; \
+    fi
