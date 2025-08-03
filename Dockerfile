@@ -43,18 +43,17 @@ RUN dotnet restore Sonarr.sln \
     --runtime linux-musl-x64 \
     --configfile NuGet.Config
 
-# Build the solution with the target runtime
+# Build the solution WITHOUT the runtime identifier
 RUN dotnet build Sonarr.sln \
     -c Release \
     -f net8.0 \
-    -r linux-musl-x64 \
     --no-restore \
     --verbosity minimal \
     --disable-parallel \
     -p:DebugType=portable \
     -p:DebugSymbols=true
 
-# Find and publish the main project
+# Find and publish the main project with the runtime identifier
 RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
     echo "Publishing project: $MAIN_PROJECT" && \
     dotnet publish "$MAIN_PROJECT" \
