@@ -33,19 +33,32 @@ RUN dotnet restore Sonarr.sln \
     --configfile NuGet.Config \
     -p:NoWarn=NETSDK1188
 
-# Build and publish with memory constraints and warning suppression
-RUN dotnet publish Sonarr.sln \
+# Build the solution first
+RUN dotnet build Sonarr.sln \
+    -c Release \
+    -f net8.0 \
+    --no-restore \
+    --verbosity minimal \
+    --disable-parallel \
+    -p:DebugType=None \
+    -p:DebugSymbols=false \
+    -p:EmbedUntrackedSources=false \
+    -p:NoWarn=NETSDK1188
+
+# Publish the main Sonarr project instead of the solution
+RUN dotnet publish NzbDrone.Host/Sonarr.Host.csproj \
     -c Release \
     -f net8.0 \
     -r linux-musl-x64 \
     --self-contained false \
     --no-restore \
+    --no-build \
     --verbosity minimal \
-    --disable-parallel \
     -p:PublishReadyToRun=false \
     -p:PublishSingleFile=false \
     -p:DebugType=None \
     -p:DebugSymbols=false \
+    -p:EmbedUntrackedSources=false \
     -p:NoWarn=NETSDK1188 \
     -o /app/sonarr/bin
 
@@ -54,7 +67,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
 LABEL maintainer="d3dx9"
 ARG VERSION="1337"
-ARG BUILD_DATE="2025-01-03"
+ARG BUILD_DATE="2025-08-03"
 
 # Install runtime dependencies
 RUN apk add --no-cache \
