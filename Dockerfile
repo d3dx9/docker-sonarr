@@ -18,7 +18,6 @@ ENV XDG_CONFIG_HOME="/config/xdg" \
   DOTNET_ROOT=/usr/lib/dotnet \
   PATH="$PATH:/usr/lib/dotnet"
 
-# install dependencies and dotnet sdk 8.0.405
 RUN echo "**** install packages ****" && \
   apk add --no-cache \
     icu-libs \
@@ -27,10 +26,13 @@ RUN echo "**** install packages ****" && \
     git \
     curl \
     bash && \
+  echo "**** prepare tempdir ****" && \
+  mkdir -p /run/sonarr-temp && \
   echo "**** install .NET SDK 8.0.405 ****" && \
   curl -SL https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh -o dotnet-install.sh && \
   bash dotnet-install.sh --version 8.0.405 --install-dir /usr/lib/dotnet && \
   ln -s /usr/lib/dotnet/dotnet /usr/bin/dotnet
+
 
 # build sonarr from source
 RUN echo "**** build sonarr from latest v5-develop commit ****" && \
