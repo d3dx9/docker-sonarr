@@ -6,22 +6,33 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS builder
 # Install git and other build dependencies
 RUN apk add --no-cache git
 
+# Set memory limits for .NET
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+
 WORKDIR /src
 
 # Clone only what we need
 RUN git clone --depth 1 --branch v5-develop https://github.com/d3dx9/Sonarr-1.git . && \
-    echo "Building from commit: $(git rev-parse HEAD)" && \
-    cd src
+    echo "Building from commit: $(git rev-parse HEAD)"
 
 # Set working directory to src
 WORKDIR /src/src
 
-# Restore packages with optimizations
-RUN dotnet restore Sonarr.sln \
-    --verbosity minimal \
-    --runtime linux-musl-x64
+# Clean up unnecessary files to save memory
+RUN find . -name "*.md" -delete && \
+    find . -name "*.yml" -delete && \
+    find . -name "*.yaml" -delete
 
-# Build and publish
+# Restore packages with memory optimizations
+RUN dotnet restore Sonarr.sln \
+    --disable-parallel \
+    --verbosity minimal \
+    --runtime linux-musl-x64 \
+    --configfile ../NuGet.Config
+
+# Build and publish with memory constraints
 RUN dotnet publish Sonarr.sln \
     -c Release \
     -f net8.0 \
@@ -29,8 +40,11 @@ RUN dotnet publish Sonarr.sln \
     --self-contained false \
     --no-restore \
     --verbosity minimal \
+    --disable-parallel \
     -p:PublishReadyToRun=false \
     -p:PublishSingleFile=false \
+    -p:DebugType=None \
+    -p:DebugSymbols=false \
     -o /app/sonarr/bin
 
 # Runtime stage  
