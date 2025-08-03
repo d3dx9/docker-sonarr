@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# Build stage
-FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS builder
+# Build stage - use .NET 6.0 SDK as required by global.json
+FROM mcr.microsoft.com/dotnet/sdk:6.0-alpine AS builder
 
 # Install git and other build dependencies
 RUN apk add --no-cache git nodejs npm yarn
@@ -17,7 +17,14 @@ WORKDIR /src
 RUN git clone --depth 1 --branch develop https://github.com/Sonarr/Sonarr.git . && \
     echo "Building from commit: $(git rev-parse HEAD)"
 
-# Install frontend dependencies and build UI (corrected command)
+# Remove global.json to use the available SDK version
+RUN if [ -f "global.json" ]; then \
+        echo "Found global.json, removing it to use available SDK:" && \
+        cat global.json && \
+        rm global.json; \
+    fi
+
+# Install frontend dependencies and build UI
 RUN yarn install --frozen-lockfile --network-timeout 120000 && \
     yarn build
 
@@ -39,12 +46,11 @@ WORKDIR /src/src
 RUN dotnet restore --verbosity minimal
 
 # Build the solution
-RUN dotnet build -c Release -f net8.0 --no-restore --verbosity minimal
+RUN dotnet build -c Release --no-restore --verbosity minimal
 
 # Publish the Console application (main entry point)
 RUN dotnet publish NzbDrone.Console/NzbDrone.Console.csproj \
     -c Release \
-    -f net8.0 \
     -r linux-musl-x64 \
     --self-contained true \
     --verbosity minimal \
@@ -66,28 +72,21 @@ RUN if [ -d "/src/_output/UI" ]; then \
 RUN find /app/sonarr/bin -name "*.pdb" -delete && \
     find /app/sonarr/bin -name "*.xml" -delete
 
-# Runtime stage - use minimal alpine since we're self-contained
-FROM alpine:3.18
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:6.0-alpine
 
 LABEL maintainer="Sonarr Team"
 ARG VERSION="4.0"
-ARG BUILD_DATE="2025-01-03"
+ARG BUILD_DATE="2025-08-03"
 
-# Install minimal runtime dependencies for Alpine Linux
+# Install runtime dependencies
 RUN apk add --no-cache \
     icu-libs \
     sqlite-libs \
-    libgcc \
-    libstdc++ \
-    zlib \
-    ca-certificates \
     wget
 
 # Copy built application
 COPY --from=builder /app/sonarr/bin /app/sonarr/bin
-
-# Make the executable file executable
-RUN chmod +x /app/sonarr/bin/Sonarr
 
 # Create sonarr user and group
 RUN addgroup -g 13001 -S sonarr && \
@@ -114,5 +113,5 @@ EXPOSE 8989
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8989/ping || exit 1
 
-# Run the main Sonarr executable
-CMD ["./bin/Sonarr", "-nobrowser", "-data=/config"]
+# Run using dotnet with the main DLL
+CMD ["dotnet", "./bin/NzbDrone.Console.dll", "-nobrowser", "-data=/config"]
