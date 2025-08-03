@@ -13,29 +13,34 @@ RUN curl -sL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs && \
     npm install --global yarn
 
-# Install frontend dependencies (adjust path if your UI folder is different)
+# Install frontend dependencies
 WORKDIR /app/UI
 RUN yarn install
 
-# Optional: build frontend assets, ignore error if no build script
+# Build frontend assets
 RUN yarn build || yarn run build || true
 
 WORKDIR /app
 
-# Restore and build Sonarr (x86)
+# Restore and build Sonarr
 RUN dotnet restore src/Sonarr.sln
 RUN dotnet build src/Sonarr.sln -c Release
-RUN dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj -c Release  -f net8.0   /p:TreatWarningsAsErrors=false /p:WarningsNotAsErrors=SA1200 -o /publish /p:CopyLocalLockFileAssemblies=true
+RUN dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj -c Release -f net8.0 /p:TreatWarningsAsErrors=false /p:WarningsNotAsErrors=SA1200 -o /publish /p:CopyLocalLockFileAssemblies=true
 RUN dotnet build src/NzbDrone.Mono/Sonarr.Mono.csproj -c Release -f net8.0
+
 # Kopiere nur DLLs, die NICHT im ref-Ordner liegen:
 RUN find . -name "Sonarr.Mono.dll" -exec cp {} /publish/ \;
 RUN find . -name "Mono.Posix.NETStandard.dll" ! -path "*/ref/*" -exec cp {} /publish/ \;
 RUN find . -path "./src/*/bin/Release/net8.0/*.dll" -exec cp -n {} /publish/ \;
 RUN find . -name "*.so" -exec cp -n {} /publish/ \;
 
+# Kopiere das gebaute UI in den Publish-Ordner
+# (Passe den Pfad ggf. an, falls dein Build z.B. nach /app/UI/build oder /app/UI/dist gebaut wird!)
+RUN if [ -d /app/UI/dist ]; then cp -r /app/UI/dist /publish/UI; elif [ -d /app/UI/build ]; then cp -r /app/UI/build /publish/UI; fi
+
 # --------- RUNTIME STAGE ---------
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
-RUN apt-get update && apt-get install -y --no-install-recommends libsqlite3-0
+RUN apt-get update && apt-get install -y --no-install-recommends libsqlite3-0 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /publish .
 EXPOSE 8989
