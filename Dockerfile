@@ -43,6 +43,7 @@ RUN echo "**** build sonarr from latest v5-develop commit ****" && \
   echo "Building from commit: $(git rev-parse HEAD)" && \
   dotnet publish src/NzbDrone.Console \
     -c Release \
+    -f net8.0 \
     -r linux-musl-x64 \
     --self-contained false \
     -o /app/sonarr/bin && \
