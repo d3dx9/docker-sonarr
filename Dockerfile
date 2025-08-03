@@ -33,21 +33,31 @@ RUN dotnet restore Sonarr.sln \
     --configfile NuGet.Config \
     -p:NoWarn=NETSDK1188
 
-# Build and publish in one step with debug symbols enabled (required for embed)
-RUN dotnet publish Sonarr.sln \
+# Build first, then find and publish the main project to avoid solution-level output issues
+RUN dotnet build Sonarr.sln \
+    -c Release \
+    -f net8.0 \
+    --no-restore \
+    --verbosity minimal \
+    --disable-parallel \
+    -p:DebugType=portable \
+    -p:DebugSymbols=true \
+    -p:NoWarn=NETSDK1188
+
+# Find the main Sonarr Host project and publish it specifically
+RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
+    echo "Publishing project: $MAIN_PROJECT" && \
+    dotnet publish "$MAIN_PROJECT" \
     -c Release \
     -f net8.0 \
     -r linux-musl-x64 \
     --self-contained false \
     --no-restore \
+    --no-build \
     --verbosity minimal \
-    --disable-parallel \
     -p:PublishReadyToRun=false \
     -p:PublishSingleFile=false \
-    -p:DebugType=portable \
-    -p:DebugSymbols=true \
-    -p:NoWarn="NETSDK1188;NETSDK1194" \
-    --output /app/sonarr/bin
+    -o /app/sonarr/bin
 
 # Remove PDB files and other unnecessary files to save space
 RUN find /app/sonarr/bin -name "*.pdb" -delete && \
@@ -58,7 +68,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
 LABEL maintainer="d3dx9"
 ARG VERSION="1337"
-ARG BUILD_DATE="2025-08-03"
+ARG BUILD_DATE="2025-01-03"
 
 # Install runtime dependencies
 RUN apk add --no-cache \
