@@ -5,21 +5,28 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS builder
 
 WORKDIR /src
 
-# Install git and clone the repository
-RUN apk add --no-cache git && \
-    git clone --depth 1 --branch v5-develop https://github.com/d3dx9/Sonarr-1.git . && \
-    cd src
+# Install git
+RUN apk add --no-cache git
 
-# Restore packages
-RUN cd src && dotnet restore Sonarr.sln --disable-parallel
+# Clone repository
+RUN git clone --depth 1 --branch v5-develop https://github.com/d3dx9/Sonarr-1.git . && \
+    echo "Building from commit: $(git rev-parse HEAD)"
+
+# Copy only project files first for better caching
+WORKDIR /src/src
+RUN find . -name "*.csproj" -o -name "*.sln" | head -20
+
+# Restore packages (this will be cached if project files don't change)
+RUN dotnet restore Sonarr.sln --disable-parallel --verbosity minimal
 
 # Build and publish
-RUN cd src && dotnet publish Sonarr.sln \
+RUN dotnet publish Sonarr.sln \
     -c Release \
     -f net8.0 \
     -r linux-musl-x64 \
     --self-contained false \
     --no-restore \
+    --verbosity minimal \
     -o /app/sonarr/bin
 
 # Runtime stage
