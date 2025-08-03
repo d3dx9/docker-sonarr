@@ -21,25 +21,24 @@ RUN \
   apk add --no-cache \
     icu-libs \
     sqlite-libs \
-    xmlstarlet && \
-  echo "**** install sonarr ****" && \
+    xmlstarlet \
+    git \
+    dotnet6-sdk && \
+  echo "**** build sonarr from specific commit ****" && \
   mkdir -p /app/sonarr/bin && \
-  if [ -z ${SONARR_VERSION+x} ]; then \
-    SONARR_VERSION=$(curl -sX GET http://services.sonarr.tv/v1/releases \
-    | jq -r "first(.[] | select(.releaseChannel==\"${SONARR_CHANNEL}\") | .version)"); \
-  fi && \
-  curl -o \
-    /tmp/sonarr.tar.gz -L \
-    "https://services.sonarr.tv/v1/update/${SONARR_BRANCH}/download?version=${SONARR_VERSION}&os=linuxmusl&runtime=netcore&arch=x64" && \
-  tar xzf \
-    /tmp/sonarr.tar.gz -C \
-    /app/sonarr/bin --strip-components=1 && \
+  cd /tmp && \
+  git clone https://github.com/d3dx9/Sonarr-1.git && \
+  cd Sonarr && \
+  # Hier Ihren spezifischen Commit-Hash eintragen
+  git checkout f7aed9547e0e7b21f0f8afad682b9afa4a95ad23 && \
+  dotnet publish src/Sonarr.Console -c Release -r linux-musl-x64 --self-contained false -o /app/sonarr/bin && \
   echo -e "UpdateMethod=docker\nBranch=${SONARR_BRANCH}\nPackageVersion=${VERSION:-LocalBuild}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
   printf "Linuxserver.io version: ${VERSION}\nBuild-date: ${BUILD_DATE}" > /build_version && \
   echo "**** cleanup ****" && \
   rm -rf \
     /app/sonarr/bin/Sonarr.Update \
-    /tmp/*
+    /tmp/* && \
+  apk del git dotnet6-sdk
 
 # add local files
 COPY root/ /
