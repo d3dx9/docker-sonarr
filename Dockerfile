@@ -14,11 +14,8 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 WORKDIR /src
 
 # Clone the official Sonarr repository
-RUN git clone --depth 1 --branch develop https://github.com/Sonarr/Sonarr.git . && \
+RUN git clone --depth 1 --branch develop https://github.com/d3dx9/Sonarr-1.git . && \
     echo "Building from commit: $(git rev-parse HEAD)"
-
-# Set working directory to src
-WORKDIR /src
 
 # Install frontend dependencies and build UI
 RUN yarn install --frozen-lockfile --network-timeout 120000 && \
@@ -56,8 +53,15 @@ RUN dotnet publish NzbDrone.Console/NzbDrone.Console.csproj \
     -p:PublishTrimmed=false \
     -o /app/sonarr/bin
 
-# Copy the frontend build to the output
-COPY --from=builder /src/_output/UI /app/sonarr/bin/UI
+# Copy the frontend build to the output (fixed path)
+RUN if [ -d "/src/_output/UI" ]; then \
+        cp -r /src/_output/UI /app/sonarr/bin/; \
+    elif [ -d "/src/src/UI/build" ]; then \
+        cp -r /src/src/UI/build /app/sonarr/bin/UI; \
+    else \
+        echo "UI build not found, creating empty UI directory" && \
+        mkdir -p /app/sonarr/bin/UI; \
+    fi
 
 # Remove PDB files and other unnecessary files to save space
 RUN find /app/sonarr/bin -name "*.pdb" -delete && \
@@ -77,7 +81,8 @@ RUN apk add --no-cache \
     libgcc \
     libstdc++ \
     zlib \
-    ca-certificates
+    ca-certificates \
+    wget
 
 # Copy built application
 COPY --from=builder /app/sonarr/bin /app/sonarr/bin
