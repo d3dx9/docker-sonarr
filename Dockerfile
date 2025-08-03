@@ -36,7 +36,7 @@ RUN echo '<Project>' > Directory.Build.props && \
     echo '  </PropertyGroup>' >> Directory.Build.props && \
     echo '</Project>' >> Directory.Build.props
 
-# Restore packages
+# Initial restore for building
 RUN dotnet restore Sonarr.sln \
     --disable-parallel \
     --verbosity minimal \
@@ -52,6 +52,14 @@ RUN dotnet build Sonarr.sln \
     -p:DebugType=portable \
     -p:DebugSymbols=true
 
+# Restore specifically for the Host project with runtime identifier
+RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
+    echo "Restoring project for self-contained: $MAIN_PROJECT" && \
+    dotnet restore "$MAIN_PROJECT" \
+    --runtime linux-musl-x64 \
+    --verbosity minimal \
+    --configfile NuGet.Config
+
 # Find and publish the main project as self-contained
 RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
     echo "Publishing project: $MAIN_PROJECT" && \
@@ -60,7 +68,6 @@ RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
     -f net8.0 \
     -r linux-musl-x64 \
     --self-contained true \
-    --no-restore \
     --verbosity minimal \
     -p:PublishReadyToRun=false \
     -p:PublishSingleFile=false \
