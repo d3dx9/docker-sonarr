@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build stage - use .NET 6.0 SDK as required by global.json
-FROM mcr.microsoft.com/dotnet/sdk:6.0-alpine AS builder
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS builder
 
 # Install git and other build dependencies
 RUN apk add --no-cache git nodejs npm yarn
