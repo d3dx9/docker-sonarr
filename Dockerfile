@@ -14,12 +14,12 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 WORKDIR /src
 
 # Clone the official Sonarr repository
-RUN git clone --depth 1 --branch develop https://github.com/d3dx9/Sonarr-1.git . && \
+RUN git clone --depth 1 --branch develop https://github.com/Sonarr/Sonarr.git . && \
     echo "Building from commit: $(git rev-parse HEAD)"
 
-# Install frontend dependencies and build UI
+# Install frontend dependencies and build UI (corrected command)
 RUN yarn install --frozen-lockfile --network-timeout 120000 && \
-    yarn build --production
+    yarn build
 
 # Create a Directory.Build.props to override project settings globally
 RUN echo '<Project>' > src/Directory.Build.props && \
@@ -53,13 +53,12 @@ RUN dotnet publish NzbDrone.Console/NzbDrone.Console.csproj \
     -p:PublishTrimmed=false \
     -o /app/sonarr/bin
 
-# Copy the frontend build to the output (fixed path)
+# Copy the frontend build to the output
 RUN if [ -d "/src/_output/UI" ]; then \
         cp -r /src/_output/UI /app/sonarr/bin/; \
-    elif [ -d "/src/src/UI/build" ]; then \
-        cp -r /src/src/UI/build /app/sonarr/bin/UI; \
     else \
-        echo "UI build not found, creating empty UI directory" && \
+        echo "UI build not found at /src/_output/UI" && \
+        find /src -name "*UI*" -type d && \
         mkdir -p /app/sonarr/bin/UI; \
     fi
 
