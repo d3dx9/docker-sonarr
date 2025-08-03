@@ -20,17 +20,17 @@ RUN git clone --depth 1 --branch v5-develop https://github.com/d3dx9/Sonarr-1.gi
 # Set working directory to src
 WORKDIR /src/src
 
-# Clean up unnecessary files to save memory
+# Clean up unnecessary files to save memory (but keep NuGet.Config)
 RUN find . -name "*.md" -delete && \
     find . -name "*.yml" -delete && \
     find . -name "*.yaml" -delete
 
-# Restore packages with memory optimizations
+# Restore packages with memory optimizations (correct NuGet.Config path)
 RUN dotnet restore Sonarr.sln \
     --disable-parallel \
     --verbosity minimal \
     --runtime linux-musl-x64 \
-    --configfile ../NuGet.Config
+    --configfile NuGet.Config
 
 # Build and publish with memory constraints
 RUN dotnet publish Sonarr.sln \
@@ -52,7 +52,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
 LABEL maintainer="d3dx9"
 ARG VERSION="1337"
-ARG BUILD_DATE="2025-08-03"
+ARG BUILD_DATE="2025-01-03"
 
 # Install runtime dependencies
 RUN apk add --no-cache \
