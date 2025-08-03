@@ -34,9 +34,10 @@ RUN find . -name "Mono.Posix.NETStandard.dll" ! -path "*/ref/*" -exec cp {} /pub
 RUN find . -path "./src/*/bin/Release/net8.0/*.dll" -exec cp -n {} /publish/ \;
 RUN find . -name "*.so" -exec cp -n {} /publish/ \;
 
-# Kopiere das gebaute UI in den Publish-Ordner
-# (Passe den Pfad ggf. an, falls dein Build z.B. nach /app/UI/build oder /app/UI/dist gebaut wird!)
-RUN if [ -d /app/UI/dist ]; then cp -r /app/UI/dist /publish/UI; elif [ -d /app/UI/build ]; then cp -r /app/UI/build /publish/UI; fi
+# Kopiere das gebaute UI in den Publish-Ordner (ALLE Möglichkeiten prüfen!)
+RUN if [ -d /app/_output/UI ]; then cp -r /app/_output/UI /publish/UI; \
+    elif [ -d /app/UI/dist ]; then cp -r /app/UI/dist /publish/UI; \
+    elif [ -d /app/UI/build ]; then cp -r /app/UI/build /publish/UI; fi
 
 # --------- RUNTIME STAGE ---------
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
