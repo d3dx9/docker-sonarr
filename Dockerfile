@@ -33,34 +33,25 @@ RUN dotnet restore Sonarr.sln \
     --configfile NuGet.Config \
     -p:NoWarn=NETSDK1188
 
-# Build the solution first
-RUN dotnet build Sonarr.sln \
-    -c Release \
-    -f net8.0 \
-    --no-restore \
-    --verbosity minimal \
-    --disable-parallel \
-    -p:DebugType=None \
-    -p:DebugSymbols=false \
-    -p:EmbedUntrackedSources=false \
-    -p:NoWarn=NETSDK1188
-
-# Publish the main Sonarr project instead of the solution
-RUN dotnet publish NzbDrone.Host/Sonarr.Host.csproj \
+# Build and publish in one step with debug symbols enabled (required for embed)
+RUN dotnet publish Sonarr.sln \
     -c Release \
     -f net8.0 \
     -r linux-musl-x64 \
     --self-contained false \
     --no-restore \
-    --no-build \
     --verbosity minimal \
+    --disable-parallel \
     -p:PublishReadyToRun=false \
     -p:PublishSingleFile=false \
-    -p:DebugType=None \
-    -p:DebugSymbols=false \
-    -p:EmbedUntrackedSources=false \
-    -p:NoWarn=NETSDK1188 \
-    -o /app/sonarr/bin
+    -p:DebugType=portable \
+    -p:DebugSymbols=true \
+    -p:NoWarn="NETSDK1188;NETSDK1194" \
+    --output /app/sonarr/bin
+
+# Remove PDB files and other unnecessary files to save space
+RUN find /app/sonarr/bin -name "*.pdb" -delete && \
+    find /app/sonarr/bin -name "*.xml" -delete
 
 # Runtime stage  
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
