@@ -14,7 +14,7 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 WORKDIR /src
 
 # Clone the official Sonarr repository
-RUN git clone --depth 1 --branch develop https://github.com/Sonarr/Sonarr.git . && \
+RUN git clone --depth 1 --branch v5-develop https://github.com/d3dx9/Sonarr-1.git . && \
     echo "Building from commit: $(git rev-parse HEAD)"
 
 # Remove global.json to use the available SDK version
