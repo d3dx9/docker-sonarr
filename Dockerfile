@@ -1,43 +1,103 @@
--------
+# syntax=docker/dockerfile:1
 
-failed to solve: process "/bin/sh -c dotnet build Sonarr.sln     -c Release     -f net8.0     --no-restore     --verbosity minimal     --disable-parallel     -p:DebugType=portable     -p:DebugSymbols=true     -p:NoWarn=\"NETSDK1188;CS1591\"     -p:TreatWarningsAsErrors=false     -p:WarningsAsErrors=\"\"     -p:DocumentationFile=\"\"" did not complete successfully: exit code: 1
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS builder
 
-root@linux-plexaio:~# docker compose up
-WARN[0000] /root/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion
-#1 [internal] load local bake definitions
-#1 reading from stdin 488B done
-#1 DONE 0.0s
+# Install git and other build dependencies
+RUN apk add --no-cache git
 
-#2 [internal] load git source https://github.com/d3dx9/docker-sonarr.git
-#2 0.330 ref: refs/heads/master HEAD
-#2 0.330 129cd3d95defcb0ac89d1009df02363117eb8835       HEAD
-#2 0.638 129cd3d95defcb0ac89d1009df02363117eb8835       refs/heads/master
-#2 0.304 ref: refs/heads/master HEAD
-#2 0.304 129cd3d95defcb0ac89d1009df02363117eb8835       HEAD
-#2 0.745 From https://github.com/d3dx9/docker-sonarr
-#2 0.745  t [tag update]      master     -> master
-#2 0.745  + 84c8744...129cd3d master     -> origin/master  (forced update)
-#2 DONE 1.5s
+# Set memory limits for .NET
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
-#3 resolve image config for docker-image://docker.io/docker/dockerfile:1
-#3 DONE 0.4s
+WORKDIR /src
 
-#4 docker-image://docker.io/docker/dockerfile:1@sha256:9857836c9ee4268391bb5b09f9f157f3c91bb15821bb77969642813b0d00518d
-#4 CACHED
-Dockerfile:30
+# Clone only what we need
+RUN git clone --depth 1 --branch v5-develop https://github.com/d3dx9/Sonarr-1.git . && \
+    echo "Building from commit: $(git rev-parse HEAD)"
 
---------------------
+# Set working directory to src
+WORKDIR /src/src
 
-  28 |     # Create a Directory.Build.props to override project settings globally
+# Clean up unnecessary files to save memory (but keep NuGet.Config)
+RUN find . -name "*.md" -delete && \
+    find . -name "*.yml" -delete && \
+    find . -name "*.yaml" -delete
 
-  29 |     RUN cat > Directory.Build.props << 'EOF'
+# Create a Directory.Build.props to override project settings globally
+RUN echo '<Project>' > Directory.Build.props && \
+    echo '  <PropertyGroup>' >> Directory.Build.props && \
+    echo '    <NoWarn>$(NoWarn);NETSDK1188;CS1591</NoWarn>' >> Directory.Build.props && \
+    echo '    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>' >> Directory.Build.props && \
+    echo '    <WarningsAsErrors></WarningsAsErrors>' >> Directory.Build.props && \
+    echo '    <DocumentationFile></DocumentationFile>' >> Directory.Build.props && \
+    echo '    <GenerateDocumentationFile>false</GenerateDocumentationFile>' >> Directory.Build.props && \
+    echo '  </PropertyGroup>' >> Directory.Build.props && \
+    echo '</Project>' >> Directory.Build.props
 
-  30 | >>> <Project>
+# Restore packages
+RUN dotnet restore Sonarr.sln \
+    --disable-parallel \
+    --verbosity minimal \
+    --runtime linux-musl-x64 \
+    --configfile NuGet.Config
 
-  31 |       <PropertyGroup>
+# Build the solution
+RUN dotnet build Sonarr.sln \
+    -c Release \
+    -f net8.0 \
+    --no-restore \
+    --verbosity minimal \
+    --disable-parallel \
+    -p:DebugType=portable \
+    -p:DebugSymbols=true
 
-  32 |         <NoWarn>$(NoWarn);NETSDK1188;CS1591</NoWarn>
+# Find and publish the main project
+RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
+    echo "Publishing project: $MAIN_PROJECT" && \
+    dotnet publish "$MAIN_PROJECT" \
+    -c Release \
+    -f net8.0 \
+    -r linux-musl-x64 \
+    --self-contained false \
+    --no-restore \
+    --no-build \
+    --verbosity minimal \
+    -p:PublishReadyToRun=false \
+    -p:PublishSingleFile=false \
+    -o /app/sonarr/bin
 
---------------------
+# Remove PDB files and other unnecessary files to save space
+RUN find /app/sonarr/bin -name "*.pdb" -delete && \
+    find /app/sonarr/bin -name "*.xml" -delete
 
-failed to solve: dockerfile parse error on line 30: unknown instruction: <Project>
+# Runtime stage  
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
+
+LABEL maintainer="d3dx9"
+ARG VERSION="1337"
+ARG BUILD_DATE="2025-08-03"
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    icu-libs \
+    sqlite-libs \
+    xmlstarlet
+
+# Copy built application
+COPY --from=builder /app/sonarr/bin /app/sonarr/bin
+
+# Create package info
+RUN echo -e "UpdateMethod=docker\nBranch=v5-develop\nPackageVersion=${VERSION}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
+    printf "Linuxserver.io version: ${VERSION}\nBuild-date: ${BUILD_DATE}" > /build_version && \
+    rm -rf /app/sonarr/bin/Sonarr.Update
+
+# Set working directory
+WORKDIR /app/sonarr
+
+# Expose port
+EXPOSE 8989
+
+# Run Sonarr
+CMD ["./bin/Sonarr", "-nobrowser", "-data=/config"]
