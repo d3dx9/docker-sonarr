@@ -53,7 +53,7 @@ RUN dotnet build Sonarr.sln \
     -p:DebugType=portable \
     -p:DebugSymbols=true
 
-# Find and publish the main project with the runtime identifier
+# Find and publish the main project - remove --no-build to allow rebuild with RID
 RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
     echo "Publishing project: $MAIN_PROJECT" && \
     dotnet publish "$MAIN_PROJECT" \
@@ -62,7 +62,6 @@ RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
     -r linux-musl-x64 \
     --self-contained false \
     --no-restore \
-    --no-build \
     --verbosity minimal \
     -p:PublishReadyToRun=false \
     -p:PublishSingleFile=false \
