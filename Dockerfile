@@ -42,7 +42,10 @@ RUN dotnet build Sonarr.sln \
     --disable-parallel \
     -p:DebugType=portable \
     -p:DebugSymbols=true \
-    -p:NoWarn=NETSDK1188
+    -p:NoWarn="NETSDK1188;CS1591" \
+    -p:TreatWarningsAsErrors=false \
+    -p:WarningsAsErrors="" \
+    -p:DocumentationFile=""
 
 # Find the main Sonarr Host project and publish it specifically
 RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
