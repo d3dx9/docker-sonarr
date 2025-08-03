@@ -72,69 +72,27 @@ RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
     -p:PublishReadyToRun=false \
     -p:PublishSingleFile=false \
     -p:PublishTrimmed=false \
-    -p:UseAppHost=true \
     -o /app/sonarr/bin
-
-# Debug: Check what was created
-RUN echo "=== FILES CREATED ===" && \
-    ls -la /app/sonarr/bin/ && \
-    echo "=== CONFIG FILES ===" && \
-    find /app/sonarr/bin -name "*.json" && \
-    echo "=== EXECUTABLE FILES ===" && \
-    find /app/sonarr/bin -type f -executable && \
-    echo "=== HOST FILES ===" && \
-    find /app/sonarr/bin -name "*Host*" && \
-    echo "=== SONARR FILES ===" && \
-    find /app/sonarr/bin -name "*Sonarr*" -type f
 
 # Remove PDB files and other unnecessary files to save space
 RUN find /app/sonarr/bin -name "*.pdb" -delete && \
     find /app/sonarr/bin -name "*.xml" -delete
 
-# Runtime stage - use a minimal alpine image since we're self-contained
-FROM alpine:3.18
+# Runtime stage - Keep using .NET runtime image since self-contained isn't working as expected
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
 LABEL maintainer="d3dx9"
 ARG VERSION="1337"
 ARG BUILD_DATE="2025-01-03"
 
-# Install minimal runtime dependencies for Alpine Linux
+# Install runtime dependencies
 RUN apk add --no-cache \
     icu-libs \
     sqlite-libs \
-    xmlstarlet \
-    libgcc \
-    libstdc++ \
-    zlib
+    xmlstarlet
 
 # Copy built application
 COPY --from=builder /app/sonarr/bin /app/sonarr/bin
-
-# Debug: Show what was copied and find the correct executable
-RUN echo "=== COPIED FILES ===" && \
-    ls -la /app/sonarr/bin/ && \
-    echo "=== EXECUTABLE FILES ===" && \
-    find /app/sonarr/bin -type f -executable && \
-    echo "=== POTENTIAL MAIN FILES ===" && \
-    find /app/sonarr/bin -name "*Host*" -o -name "*Sonarr*" | grep -v ".dll" | head -5
-
-# Make executable files executable (find the correct one)
-RUN find /app/sonarr/bin -type f -executable -exec chmod +x {} \; && \
-    if [ -f /app/sonarr/bin/Sonarr.Host ]; then \
-        echo "Found Sonarr.Host executable"; \
-    elif [ -f /app/sonarr/bin/NzbDrone.Host ]; then \
-        echo "Found NzbDrone.Host executable"; \
-        ln -s NzbDrone.Host /app/sonarr/bin/Sonarr.Host; \
-    else \
-        echo "Looking for any executable file..." && \
-        EXEC_FILE=$(find /app/sonarr/bin -type f -executable | grep -v "\.so$" | head -1) && \
-        if [ -n "$EXEC_FILE" ]; then \
-            echo "Found executable: $EXEC_FILE" && \
-            ln -s "$(basename "$EXEC_FILE")" /app/sonarr/bin/Sonarr.Host; \
-        else \
-            echo "No executable found, will try DLL approach"; \
-        fi \
-    fi
 
 # Create package info
 RUN echo -e "UpdateMethod=docker\nBranch=v5-develop\nPackageVersion=${VERSION}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
@@ -147,5 +105,5 @@ WORKDIR /app/sonarr
 # Expose port
 EXPOSE 8989
 
-# Try to run the executable, fallback to DLL if needed
-CMD if
+# Run using dotnet with the main DLL
+CMD ["dotnet", "./bin/Sonarr.Host.dll", "-nobrowser", "-data=/config"]
