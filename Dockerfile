@@ -29,12 +29,12 @@ RUN echo "**** build sonarr from latest v5-develop commit ****" && \
     git clone --depth 1 --branch v5-develop https://github.com/d3dx9/Sonarr-1.git Sonarr && \
     cd Sonarr && \
     echo "Building from commit: $(git rev-parse HEAD)" && \
-    dotnet publish src/NzbDrone \
+    dotnet publish src/Sonarr.sln \
       -c Release \
       -f net8.0 \
       -r linux-musl-x64 \
       --self-contained false \
-      -o /app/sonarr/bin && \
+      -o /app/sonarr/bin
     echo -e "UpdateMethod=docker\nBranch=v5-develop\nPackageVersion=${VERSION}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
     printf "Linuxserver.io version: ${VERSION}\nBuild-date: ${BUILD_DATE}" > /build_version && \
     echo "**** cleanup ****" && \
