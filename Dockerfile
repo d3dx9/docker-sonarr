@@ -25,15 +25,27 @@ RUN find . -name "*.md" -delete && \
     find . -name "*.yml" -delete && \
     find . -name "*.yaml" -delete
 
-# Restore packages with memory optimizations and warning suppression
+# Create a Directory.Build.props to override project settings globally
+RUN cat > Directory.Build.props << 'EOF'
+<Project>
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);NETSDK1188;CS1591</NoWarn>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningsAsErrors></WarningsAsErrors>
+    <DocumentationFile></DocumentationFile>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>
+EOF
+
+# Restore packages
 RUN dotnet restore Sonarr.sln \
     --disable-parallel \
     --verbosity minimal \
     --runtime linux-musl-x64 \
-    --configfile NuGet.Config \
-    -p:NoWarn=NETSDK1188
+    --configfile NuGet.Config
 
-# Build first, then find and publish the main project to avoid solution-level output issues
+# Build the solution
 RUN dotnet build Sonarr.sln \
     -c Release \
     -f net8.0 \
@@ -41,13 +53,9 @@ RUN dotnet build Sonarr.sln \
     --verbosity minimal \
     --disable-parallel \
     -p:DebugType=portable \
-    -p:DebugSymbols=true \
-    -p:NoWarn="NETSDK1188;CS1591" \
-    -p:TreatWarningsAsErrors=false \
-    -p:WarningsAsErrors="" \
-    -p:DocumentationFile=""
+    -p:DebugSymbols=true
 
-# Find the main Sonarr Host project and publish it specifically
+# Find and publish the main project
 RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
     echo "Publishing project: $MAIN_PROJECT" && \
     dotnet publish "$MAIN_PROJECT" \
