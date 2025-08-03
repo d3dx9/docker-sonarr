@@ -34,7 +34,7 @@ RUN echo "**** build sonarr from latest v5-develop commit ****" && \
       -f net8.0 \
       -r linux-musl-x64 \
       --self-contained false \
-      -o /app/sonarr/bin
+      -o /app/sonarr/bin && \
     echo -e "UpdateMethod=docker\nBranch=v5-develop\nPackageVersion=${VERSION}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
     printf "Linuxserver.io version: ${VERSION}\nBuild-date: ${BUILD_DATE}" > /build_version && \
     echo "**** cleanup ****" && \
