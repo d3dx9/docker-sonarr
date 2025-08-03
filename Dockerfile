@@ -3,7 +3,7 @@
 FROM alpine:3.22
 
 LABEL maintainer="d3dx9"
-ARG VERSION="LocalBuild"
+ARG VERSION="1337"
 ARG BUILD_DATE
 
 # .NET SDK 8.0.405 installieren
