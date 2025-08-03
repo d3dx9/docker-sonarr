@@ -25,7 +25,7 @@ WORKDIR /app
 # Restore and build Sonarr (x86)
 RUN dotnet restore src/Sonarr.sln
 RUN dotnet build src/Sonarr.sln -c Release
-RUN dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj -c Release  -f net8.0   /p:TreatWarningsAsErrors=false /p:WarningsNotAsErrors=SA1200 -o /publi>
+RUN dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj -c Release  -f net8.0   /p:TreatWarningsAsErrors=false /p:WarningsNotAsErrors=SA1200 -o /publish /p:CopyLocalLockFileAssemblies=true
 RUN dotnet build src/NzbDrone.Mono/Sonarr.Mono.csproj -c Release -f net8.0
 # Kopiere nur DLLs, die NICHT im ref-Ordner liegen:
 RUN find . -name "Sonarr.Mono.dll" -exec cp {} /publish/ \;
