@@ -29,7 +29,7 @@ RUN echo "**** build sonarr from latest v5-develop commit ****" && \
     git clone --depth 1 --branch v5-develop https://github.com/d3dx9/Sonarr-1.git Sonarr && \
     cd Sonarr && \
     echo "Building from commit: $(git rev-parse HEAD)" && \
-    dotnet publish src/NzbDrone.Console \
+    dotnet publish src/Sonarr \
       -c Release \
       -f net8.0 \
       -r linux-musl-x64 \
