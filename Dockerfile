@@ -23,7 +23,7 @@ RUN \
     sqlite-libs \
     xmlstarlet \
     git \
-    dotnet8-sdk && \
+    dotnet6-sdk && \
   echo "**** build sonarr from latest v5-develop commit ****" && \
   mkdir -p /app/sonarr/bin && \
   cd /tmp && \
