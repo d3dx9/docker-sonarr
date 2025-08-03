@@ -5,19 +5,16 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS builder
 
 WORKDIR /src
 
-# Copy solution and project files first (for better caching)
-COPY src/*.sln ./
-COPY src/*/*.csproj ./
-RUN for file in $(ls *.csproj); do mkdir -p ${file%.*}/ && mv $file ${file%.*}/; done
+# Install git and clone the repository
+RUN apk add --no-cache git && \
+    git clone --depth 1 --branch v5-develop https://github.com/d3dx9/Sonarr-1.git . && \
+    cd src
 
-# Restore packages (this layer will be cached if project files don't change)
-RUN dotnet restore --disable-parallel
-
-# Copy source code
-COPY src/ ./
+# Restore packages
+RUN cd src && dotnet restore Sonarr.sln --disable-parallel
 
 # Build and publish
-RUN dotnet publish Sonarr.sln \
+RUN cd src && dotnet publish Sonarr.sln \
     -c Release \
     -f net8.0 \
     -r linux-musl-x64 \
@@ -40,6 +37,7 @@ RUN apk add --no-cache \
 COPY --from=builder /app/sonarr/bin /app/sonarr/bin
 
 RUN echo -e "UpdateMethod=docker\nBranch=v5-develop\nPackageVersion=${VERSION}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
-    printf "Linuxserver.io version: ${VERSION}\nBuild-date: ${BUILD_DATE}" > /build_version
+    printf "Linuxserver.io version: ${VERSION}\nBuild-date: ${BUILD_DATE}" > /build_version && \
+    rm -rf /app/sonarr/bin/Sonarr.Update
 
 CMD ["/app/sonarr/bin/Sonarr"]
