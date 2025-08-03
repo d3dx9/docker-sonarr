@@ -36,7 +36,7 @@ RUN echo '<Project>' > Directory.Build.props && \
     echo '  </PropertyGroup>' >> Directory.Build.props && \
     echo '</Project>' >> Directory.Build.props
 
-# Restore packages for framework-dependent deployment
+# Restore packages
 RUN dotnet restore Sonarr.sln \
     --disable-parallel \
     --verbosity minimal \
@@ -52,44 +52,54 @@ RUN dotnet build Sonarr.sln \
     -p:DebugType=portable \
     -p:DebugSymbols=true
 
-# Find and publish the main project as framework-dependent
+# Find and publish the main project as self-contained
 RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
     echo "Publishing project: $MAIN_PROJECT" && \
     dotnet publish "$MAIN_PROJECT" \
     -c Release \
     -f net8.0 \
+    -r linux-musl-x64 \
+    --self-contained true \
     --no-restore \
     --verbosity minimal \
     -p:PublishReadyToRun=false \
     -p:PublishSingleFile=false \
-    -p:UseAppHost=false \
+    -p:PublishTrimmed=false \
     -o /app/sonarr/bin
 
-# Verify the runtimeconfig.json was created
-RUN echo "=== CHECKING FOR RUNTIME CONFIG ===" && \
-    ls -la /app/sonarr/bin/*.json && \
-    echo "=== MAIN FILES ===" && \
-    ls -la /app/sonarr/bin/Sonarr* || ls -la /app/sonarr/bin/*Host*
+# Debug: Check what was created
+RUN echo "=== FILES CREATED ===" && \
+    ls -la /app/sonarr/bin/ && \
+    echo "=== CONFIG FILES ===" && \
+    find /app/sonarr/bin -name "*.json" && \
+    echo "=== EXECUTABLE FILES ===" && \
+    find /app/sonarr/bin -type f -executable
 
 # Remove PDB files and other unnecessary files to save space
 RUN find /app/sonarr/bin -name "*.pdb" -delete && \
     find /app/sonarr/bin -name "*.xml" -delete
 
-# Runtime stage  
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
+# Runtime stage - use a minimal alpine image since we're self-contained
+FROM alpine:3.18
 
 LABEL maintainer="d3dx9"
 ARG VERSION="1337"
 ARG BUILD_DATE="2025-01-03"
 
-# Install runtime dependencies
+# Install minimal runtime dependencies for Alpine Linux
 RUN apk add --no-cache \
     icu-libs \
     sqlite-libs \
-    xmlstarlet
+    xmlstarlet \
+    libgcc \
+    libstdc++ \
+    zlib
 
 # Copy built application
 COPY --from=builder /app/sonarr/bin /app/sonarr/bin
+
+# Make the main executable file executable
+RUN chmod +x /app/sonarr/bin/Sonarr.Host
 
 # Create package info
 RUN echo -e "UpdateMethod=docker\nBranch=v5-develop\nPackageVersion=${VERSION}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
@@ -102,5 +112,5 @@ WORKDIR /app/sonarr
 # Expose port
 EXPOSE 8989
 
-# Run the application as framework-dependent
-CMD ["dotnet", "./bin/Sonarr.Host.dll", "-nobrowser", "-data=/config"]
+# Run the self-contained executable directly
+CMD ["./bin/Sonarr.Host", "-nobrowser", "-data=/config"]
