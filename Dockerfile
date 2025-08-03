@@ -43,10 +43,11 @@ RUN dotnet restore Sonarr.sln \
     --runtime linux-musl-x64 \
     --configfile NuGet.Config
 
-# Build the solution
+# Build the solution with the target runtime
 RUN dotnet build Sonarr.sln \
     -c Release \
     -f net8.0 \
+    -r linux-musl-x64 \
     --no-restore \
     --verbosity minimal \
     --disable-parallel \
@@ -77,7 +78,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
 LABEL maintainer="d3dx9"
 ARG VERSION="1337"
-ARG BUILD_DATE="2025-08-03"
+ARG BUILD_DATE="2025-01-03"
 
 # Install runtime dependencies
 RUN apk add --no-cache \
