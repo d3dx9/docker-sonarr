@@ -72,6 +72,7 @@ RUN MAIN_PROJECT=$(find . -name "*Host*.csproj" | grep -v Test | head -1) && \
     -p:PublishReadyToRun=false \
     -p:PublishSingleFile=false \
     -p:PublishTrimmed=false \
+    -p:UseAppHost=true \
     -o /app/sonarr/bin
 
 # Debug: Check what was created
@@ -80,7 +81,11 @@ RUN echo "=== FILES CREATED ===" && \
     echo "=== CONFIG FILES ===" && \
     find /app/sonarr/bin -name "*.json" && \
     echo "=== EXECUTABLE FILES ===" && \
-    find /app/sonarr/bin -type f -executable
+    find /app/sonarr/bin -type f -executable && \
+    echo "=== HOST FILES ===" && \
+    find /app/sonarr/bin -name "*Host*" && \
+    echo "=== SONARR FILES ===" && \
+    find /app/sonarr/bin -name "*Sonarr*" -type f
 
 # Remove PDB files and other unnecessary files to save space
 RUN find /app/sonarr/bin -name "*.pdb" -delete && \
@@ -105,8 +110,31 @@ RUN apk add --no-cache \
 # Copy built application
 COPY --from=builder /app/sonarr/bin /app/sonarr/bin
 
-# Make the main executable file executable
-RUN chmod +x /app/sonarr/bin/Sonarr.Host
+# Debug: Show what was copied and find the correct executable
+RUN echo "=== COPIED FILES ===" && \
+    ls -la /app/sonarr/bin/ && \
+    echo "=== EXECUTABLE FILES ===" && \
+    find /app/sonarr/bin -type f -executable && \
+    echo "=== POTENTIAL MAIN FILES ===" && \
+    find /app/sonarr/bin -name "*Host*" -o -name "*Sonarr*" | grep -v ".dll" | head -5
+
+# Make executable files executable (find the correct one)
+RUN find /app/sonarr/bin -type f -executable -exec chmod +x {} \; && \
+    if [ -f /app/sonarr/bin/Sonarr.Host ]; then \
+        echo "Found Sonarr.Host executable"; \
+    elif [ -f /app/sonarr/bin/NzbDrone.Host ]; then \
+        echo "Found NzbDrone.Host executable"; \
+        ln -s NzbDrone.Host /app/sonarr/bin/Sonarr.Host; \
+    else \
+        echo "Looking for any executable file..." && \
+        EXEC_FILE=$(find /app/sonarr/bin -type f -executable | grep -v "\.so$" | head -1) && \
+        if [ -n "$EXEC_FILE" ]; then \
+            echo "Found executable: $EXEC_FILE" && \
+            ln -s "$(basename "$EXEC_FILE")" /app/sonarr/bin/Sonarr.Host; \
+        else \
+            echo "No executable found, will try DLL approach"; \
+        fi \
+    fi
 
 # Create package info
 RUN echo -e "UpdateMethod=docker\nBranch=v5-develop\nPackageVersion=${VERSION}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
@@ -119,5 +147,5 @@ WORKDIR /app/sonarr
 # Expose port
 EXPOSE 8989
 
-# Run the self-contained executable directly
-CMD ["./bin/Sonarr.Host", "-nobrowser", "-data=/config"]
+# Try to run the executable, fallback to DLL if needed
+CMD if
