@@ -25,14 +25,15 @@ RUN find . -name "*.md" -delete && \
     find . -name "*.yml" -delete && \
     find . -name "*.yaml" -delete
 
-# Restore packages with memory optimizations (correct NuGet.Config path)
+# Restore packages with memory optimizations and warning suppression
 RUN dotnet restore Sonarr.sln \
     --disable-parallel \
     --verbosity minimal \
     --runtime linux-musl-x64 \
-    --configfile NuGet.Config
+    --configfile NuGet.Config \
+    -p:NoWarn=NETSDK1188
 
-# Build and publish with memory constraints
+# Build and publish with memory constraints and warning suppression
 RUN dotnet publish Sonarr.sln \
     -c Release \
     -f net8.0 \
@@ -45,6 +46,7 @@ RUN dotnet publish Sonarr.sln \
     -p:PublishSingleFile=false \
     -p:DebugType=None \
     -p:DebugSymbols=false \
+    -p:NoWarn=NETSDK1188 \
     -o /app/sonarr/bin
 
 # Runtime stage  
