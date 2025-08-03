@@ -11,8 +11,8 @@ LABEL maintainer="thespad"
 
 # set environment variables
 ENV XDG_CONFIG_HOME="/config/xdg" \
-  SONARR_CHANNEL="v4-stable" \
-  SONARR_BRANCH="main" \
+  SONARR_CHANNEL="v5-develop" \
+  SONARR_BRANCH="v5-develop" \
   COMPlus_EnableDiagnostics=0 \
   TMPDIR=/run/sonarr-temp
 
@@ -23,14 +23,13 @@ RUN \
     sqlite-libs \
     xmlstarlet \
     git \
-    dotnet6-sdk && \
-  echo "**** build sonarr from specific commit ****" && \
+    dotnet8-sdk && \
+  echo "**** build sonarr from latest v5-develop commit ****" && \
   mkdir -p /app/sonarr/bin && \
   cd /tmp && \
-  git clone https://github.com/d3dx9/Sonarr-1.git && \
+  git clone --depth 1 --branch v5-develop https://github.com/d3dx9/Sonarr-1.git Sonarr && \
   cd Sonarr && \
-  # Hier Ihren spezifischen Commit-Hash eintragen
-  git checkout f7aed9547e0e7b21f0f8afad682b9afa4a95ad23 && \
+  echo "Building from commit: $(git rev-parse HEAD)" && \
   dotnet publish src/Sonarr.Console -c Release -r linux-musl-x64 --self-contained false -o /app/sonarr/bin && \
   echo -e "UpdateMethod=docker\nBranch=${SONARR_BRANCH}\nPackageVersion=${VERSION:-LocalBuild}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
   printf "Linuxserver.io version: ${VERSION}\nBuild-date: ${BUILD_DATE}" > /build_version && \
@@ -38,7 +37,7 @@ RUN \
   rm -rf \
     /app/sonarr/bin/Sonarr.Update \
     /tmp/* && \
-  apk del git dotnet6-sdk
+  apk del git dotnet8-sdk
 
 # add local files
 COPY root/ /
