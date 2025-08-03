@@ -1,51 +1,45 @@
 # syntax=docker/dockerfile:1
 
-FROM alpine:3.22
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS builder
+
+WORKDIR /src
+
+# Copy solution and project files first (for better caching)
+COPY src/*.sln ./
+COPY src/*/*.csproj ./
+RUN for file in $(ls *.csproj); do mkdir -p ${file%.*}/ && mv $file ${file%.*}/; done
+
+# Restore packages (this layer will be cached if project files don't change)
+RUN dotnet restore --disable-parallel
+
+# Copy source code
+COPY src/ ./
+
+# Build and publish
+RUN dotnet publish Sonarr.sln \
+    -c Release \
+    -f net8.0 \
+    -r linux-musl-x64 \
+    --self-contained false \
+    --no-restore \
+    -o /app/sonarr/bin
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
 LABEL maintainer="d3dx9"
 ARG VERSION="1337"
 ARG BUILD_DATE
 
-# Set file descriptor limits
-RUN ulimit -n 65536
+RUN apk add --no-cache \
+    icu-libs \
+    sqlite-libs \
+    xmlstarlet
 
-# .NET SDK 8.0.405 installieren
-RUN echo "**** install packages ****" && \
-    apk add --no-cache \
-      icu-libs \
-      sqlite-libs \
-      xmlstarlet \
-      git \
-      curl \
-      bash && \
-    echo "**** prepare tempdir ****" && \
-    mkdir -p /run/sonarr-temp && \
-    echo "**** install .NET SDK 8.0.405 ****" && \
-    curl -SL https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh -o dotnet-install.sh && \
-    bash dotnet-install.sh --version 8.0.405 --install-dir /usr/lib/dotnet && \
-    ln -s /usr/lib/dotnet/dotnet /usr/bin/dotnet
+COPY --from=builder /app/sonarr/bin /app/sonarr/bin
 
-# Sonarr aus Fork bauen
-RUN echo "**** build sonarr from latest v5-develop commit ****" && \
-    ulimit -n 65536 && \
-    mkdir -p /app/sonarr/bin && \
-    cd /tmp && \
-    git clone --depth 1 --branch v5-develop https://github.com/d3dx9/Sonarr-1.git Sonarr && \
-    cd Sonarr && \
-    echo "Building from commit: $(git rev-parse HEAD)" && \
-    dotnet restore src/Sonarr.sln --disable-parallel && \
-    dotnet publish src/Sonarr.sln \
-      -c Release \
-      -f net8.0 \
-      -r linux-musl-x64 \
-      --self-contained false \
-      --no-restore \
-      -o /app/sonarr/bin && \
-    echo -e "UpdateMethod=docker\nBranch=v5-develop\nPackageVersion=${VERSION}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
-    printf "Linuxserver.io version: ${VERSION}\nBuild-date: ${BUILD_DATE}" > /build_version && \
-    echo "**** cleanup ****" && \
-    rm -rf /app/sonarr/bin/Sonarr.Update /tmp/* && \
-    apk del git curl bash
+RUN echo -e "UpdateMethod=docker\nBranch=v5-develop\nPackageVersion=${VERSION}\nPackageAuthor=[linuxserver.io](https://linuxserver.io)" > /app/sonarr/package_info && \
+    printf "Linuxserver.io version: ${VERSION}\nBuild-date: ${BUILD_DATE}" > /build_version
 
-# Startkommando (anpassbar)
 CMD ["/app/sonarr/bin/Sonarr"]
